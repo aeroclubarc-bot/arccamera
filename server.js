@@ -170,32 +170,3 @@ document.getElementById("arc-fullscreen-btn").onclick = () => {
   else if (wrap.webkitRequestFullscreen) wrap.webkitRequestFullscreen();
 };
 </script>
-  } catch (e) {
-    console.error(e);
-    res.status(500).send("Erreur proxy");
-  }
-});
-
-// 📸 SNAPSHOT (Windy compatible)
-app.get("/snapshot.jpg", async (req, res) => {
-  try {
-    const cmd = `ffmpeg -y -i ${STREAM_ORIGIN}/piste/index.m3u8 -frames:v 1 -f image2 -`;
-
-    exec(cmd, { encoding: "buffer", maxBuffer: 5 * 1024 * 1024 }, (err, stdout) => {
-      if (!err && stdout) {
-        res.set("Content-Type", "image/jpeg");
-        res.set("Cache-Control", "no-store");
-        res.send(stdout);
-      } else {
-        // 🔥 fallback si ffmpeg ne marche pas
-        res.status(500).send("FFmpeg non disponible sur Railway");
-      }
-    });
-
-  } catch (e) {
-    res.status(500).send("Erreur snapshot");
-  }
-});
-
-// 🚀 START
-app.listen(process.env.PORT || 3000, "0.0.0.0");
