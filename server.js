@@ -9,15 +9,15 @@ app.use((req, res, next) => {
   next();
 });
 
-// test
+// Test
 app.get("/", (req, res) => {
   res.send("ARC live proxy OK");
 });
 
-// 🔥 PROXY DIRECT (clé du succès)
+// Proxy direct HLS
 app.get("/piste/*", async (req, res) => {
   try {
-    const path = req.originalUrl.replace("/piste/", "");
+    const path = req.params[0]; // IMPORTANT
 
     const url = `${ORIGIN}/piste/${path}`;
     console.log("FETCH:", url);
@@ -30,32 +30,18 @@ app.get("/piste/*", async (req, res) => {
     }
 
     const contentType = r.headers.get("content-type");
-    if (contentType) res.set("Content-Type", contentType);
+    if (contentType) {
+      res.set("Content-Type", contentType);
+    }
 
     const buffer = Buffer.from(await r.arrayBuffer());
     res.send(buffer);
 
   } catch (e) {
+    console.error(e);
     res.status(500).send("Erreur proxy");
   }
 });
 
-app.listen(process.env.PORT || 3000, "0.0.0.0");
-    if (file.endsWith(".ts")) {
-      res.set("Content-Type", "video/mp2t");
-    } else if (file.endsWith(".m4s")) {
-      res.set("Content-Type", "video/iso.segment");
-    } else if (file.endsWith(".mp4")) {
-      res.set("Content-Type", "video/mp4");
-    } else {
-      res.set("Content-Type", "application/octet-stream");
-    }
-
-    res.send(buf);
-
-  } catch (e) {
-    res.status(500).send("Erreur segment");
-  }
-});
-
+// Start serveur
 app.listen(process.env.PORT || 3000, "0.0.0.0");
