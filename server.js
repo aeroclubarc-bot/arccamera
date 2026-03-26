@@ -3,6 +3,7 @@ import express from "express";
 const app = express();
 const STREAM_ORIGIN = "http://aeroclubarc.duckdns.org:8888";
 
+// CORS
 app.use((req, res, next) => {
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Access-Control-Allow-Methods", "GET,HEAD,OPTIONS");
@@ -14,10 +15,12 @@ app.options("*", (req, res) => {
   res.sendStatus(204);
 });
 
+// test
 app.get("/", (req, res) => {
   res.send("ARC live proxy OK");
 });
 
+// proxy flux
 app.get("/piste/*", async (req, res) => {
   try {
     const subpath = req.params[0];
@@ -37,10 +40,12 @@ app.get("/piste/*", async (req, res) => {
 
     const buffer = Buffer.from(await r.arrayBuffer());
     res.send(buffer);
+
   } catch (e) {
     console.error(e);
     res.status(500).send("Erreur proxy flux");
   }
 });
 
+// start serveur
 app.listen(process.env.PORT || 3000, "0.0.0.0");
