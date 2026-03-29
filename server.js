@@ -34,7 +34,10 @@ app.get("/piste/*", async (req, res) => {
     const subpath = req.params[0];
     const url = `${STREAM_ORIGIN}/piste/${subpath}`;
     const r = await fetch(url);
-    if (!r.ok) { res.status(r.status).send("Fichier introuvable"); return; }
+    if (!r.ok) {
+      res.status(r.status).send("Fichier introuvable");
+      return;
+    }
     const contentType = r.headers.get("content-type");
     if (contentType) res.set("Content-Type", contentType);
     const buffer = Buffer.from(await r.arrayBuffer());
@@ -51,23 +54,40 @@ app.get("/snapshot", async (req, res) => {
   const imgPath = `/tmp/snapshot_${ts}.jpg`;
 
   try {
-    const manifestRes = await fetch(`${STREAM_ORIGIN}/piste/index.m3u8`);
-    if (!manifestRes.ok) throw new Error(`Manifest HTTP ${manifestRes.status}`);
-    const manifest = await manifestRes.text();
+    const masterRes = await fetch(`${STREAM_ORIGIN}/piste/index.m3u8`);
+    if (!masterRes.ok) throw new Error(`Master manifest HTTP ${masterRes.status}`);
+    const master = await masterRes.text();
+    console.log("MASTER MANIFEST:\n", master);
 
-    console.log("MANIFEST:", manifest);
+    const masterLines = master.split("\n").map(l => l.trim()).filter(l => l && !l.startsWith("#"));
 
-    const lines = manifest.split("\n").map(l => l.trim()).filter(l => l.length > 0);
-    const mediaLines = lines.filter(l => !l.startsWith("#"));
+    let segmentUrl;
 
-    if (!mediaLines.length) throw new Error(`Aucun segment trouvé. Manifest:\n${manifest}`);
+    if (masterLines.length > 0 && !masterLines[0].endsWith(".ts")) {
+      const subManifestPath = masterLines[0].split("?")[0];
+      const subManifestUrl = `${STREAM_ORIGIN}/piste/${subManifestPath}`;
+      console.log("Sub-manifest URL:", subManifestUrl);
 
-    const lastSeg = mediaLines[mediaLines.length - 1];
-    const segmentUrl = lastSeg.startsWith("http")
-      ? lastSeg
-      : `${STREAM_ORIGIN}/piste/${lastSeg.split("?")[0]}`;
+      const subRes = await fetch(subManifestUrl);
+      if (!subRes.ok) throw new Error(`Sub-manifest HTTP ${subRes.status}`);
+      const sub = await subRes.text();
+      console.log("SUB MANIFEST:\n", sub);
 
-    console.log("Segment URL:", segmentUrl);
+      const subLines = sub.split("\n").map(l => l.trim()).filter(l => l && !l.startsWith("#"));
+      if (!subLines.length) throw new Error(`Aucun segment dans le sous-manifest:\n${sub}`);
+
+      const lastSeg = subLines[subLines.length - 1].split("?")[0];
+      segmentUrl = lastSeg.startsWith("http")
+        ? lastSeg
+        : `${STREAM_ORIGIN}/piste/${lastSeg}`;
+    } else {
+      const lastSeg = masterLines[masterLines.length - 1].split("?")[0];
+      segmentUrl = lastSeg.startsWith("http")
+        ? lastSeg
+        : `${STREAM_ORIGIN}/piste/${lastSeg}`;
+    }
+
+    console.log("Segment URL final:", segmentUrl);
 
     const segRes = await fetch(segmentUrl);
     if (!segRes.ok) throw new Error(`Segment HTTP ${segRes.status}`);
