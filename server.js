@@ -70,14 +70,13 @@ app.get("/snapshot", async (req, res) => {
     const masterRes = await fetch(`${STREAM_ORIGIN}/piste/index.m3u8`);
     if (!masterRes.ok) throw new Error(`Master manifest HTTP ${masterRes.status}`);
     const master = await masterRes.text();
-
     const masterLines = master.split("\n").map(l => l.trim()).filter(l => l && !l.startsWith("#"));
 
     const subPath = masterLines[0].split("?")[0];
     const subRes = await fetch(`${STREAM_ORIGIN}/piste/${subPath}`);
     if (!subRes.ok) throw new Error(`Sub-manifest HTTP ${subRes.status}`);
     const sub = await subRes.text();
-    console.log("SUB MANIFEST:\n", sub);
+    console.log("SUB MANIFEST:", sub);
 
     const initLine = sub.split("\n").find(l => l.includes("EXT-X-MAP"));
     let initUrl = null;
@@ -90,7 +89,7 @@ app.get("/snapshot", async (req, res) => {
     }
 
     const subLines = sub.split("\n").map(l => l.trim()).filter(l => l && !l.startsWith("#"));
-    if (!subLines.length) throw new Error(`Aucun segment trouve`);
+    if (!subLines.length) throw new Error("Aucun segment trouve");
 
     const lastSeg = subLines[subLines.length - 1].split("?")[0];
     const segmentUrl = lastSeg.startsWith("http") ? lastSeg : `${STREAM_ORIGIN}/piste/${lastSeg}`;
@@ -111,7 +110,7 @@ app.get("/snapshot", async (req, res) => {
         const combined = Buffer.concat([initBuffer, segBuffer]);
         fs.writeFileSync(combinedPath, combined);
         inputPath = combinedPath;
-        console.log("Fichier combine init+segment cree");
+        console.log("Fichier combine cree");
       }
     }
 
@@ -129,86 +128,6 @@ app.get("/snapshot", async (req, res) => {
     for (const p of [initPath, segPath, combinedPath, imgPath]) {
       try { if (fs.existsSync(p)) fs.unlinkSync(p); } catch {}
     }
-  }
-});
-
-app.listen(process.env.PORT || 3000, "0.0.0.0");    res.send(text);
-  } catch (e) {
-    res.status(500).send("Erreur : " + e.message);
-  }
-});
-
-app.get("/piste/*", async (req, res) => {
-  try {
-    const subpath = req.params[0];
-    const url = `${STREAM_ORIGIN}/piste/${subpath}`;
-    const r = await fetch(url);
-    if (!r.ok) {
-      res.status(r.status).send("Fichier introuvable");
-      return;
-    }
-    const contentType = r.headers.get("content-type");
-    if (contentType) res.set("Content-Type", contentType);
-    const buffer = Buffer.from(await r.arrayBuffer());
-    res.send(buffer);
-  } catch (e) {
-    console.error(e);
-    res.status(500).send("Erreur proxy flux");
-  }
-});
-
-app.get("/snapshot", async (req, res) => {
-  const ts = Date.now();
-  const segPath = `/tmp/segment_${ts}.mp4`;
-  const imgPath = `/tmp/snapshot_${ts}.jpg`;
-
-  try {
-    const masterRes = await fetch(`${STREAM_ORIGIN}/piste/index.m3u8`);
-    if (!masterRes.ok) throw new Error(`Master manifest HTTP ${masterRes.status}`);
-    const master = await masterRes.text();
-
-    const masterLines = master.split("\n").map(l => l.trim()).filter(l => l && !l.startsWith("#"));
-
-    let segmentUrl;
-
-    if (masterLines.length > 0 && !masterLines[0].endsWith(".ts") && !masterLines[0].endsWith(".mp4")) {
-      const subPath = masterLines[0].split("?")[0];
-      const subRes = await fetch(`${STREAM_ORIGIN}/piste/${subPath}`);
-      if (!subRes.ok) throw new Error(`Sub-manifest HTTP ${subRes.status}`);
-      const sub = await subRes.text();
-      console.log("SUB MANIFEST:\n", sub);
-
-      const subLines = sub.split("\n").map(l => l.trim()).filter(l => l && !l.startsWith("#"));
-      if (!subLines.length) throw new Error(`Aucun segment dans le sous-manifest:\n${sub}`);
-
-      const lastSeg = subLines[subLines.length - 1].split("?")[0];
-      segmentUrl = lastSeg.startsWith("http") ? lastSeg : `${STREAM_ORIGIN}/piste/${lastSeg}`;
-    } else {
-      const lastSeg = masterLines[masterLines.length - 1].split("?")[0];
-      segmentUrl = lastSeg.startsWith("http") ? lastSeg : `${STREAM_ORIGIN}/piste/${lastSeg}`;
-    }
-
-    console.log("Segment URL final:", segmentUrl);
-
-    const segRes = await fetch(segmentUrl);
-    if (!segRes.ok) throw new Error(`Segment HTTP ${segRes.status}`);
-    fs.writeFileSync(segPath, Buffer.from(await segRes.arrayBuffer()));
-
-    await execAsync(
-      `ffmpeg -y -allowed_extensions ALL -analyzeduration 1000000 -probesize 1000000 -i ${segPath} -vframes 1 -q:v 3 -f image2 ${imgPath}`
-    );
-
-    const img = fs.readFileSync(imgPath);
-    res.setHeader("Content-Type", "image/jpeg");
-    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-    res.send(img);
-
-  } catch (e) {
-    console.error("Snapshot error:", e.message);
-    res.status(503).json({ error: "Snapshot indisponible", detail: e.message });
-  } finally {
-    try { if (fs.existsSync(segPath)) fs.unlinkSync(segPath); } catch {}
-    try { if (fs.existsSync(imgPath)) fs.unlinkSync(imgPath); } catch {}
   }
 });
 
